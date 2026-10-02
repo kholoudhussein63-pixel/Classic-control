@@ -1,0 +1,631 @@
+import type { ComponentDef } from '../types';
+
+// ── Component Knowledge Base ─────────────────────────────────────────────────
+// Each definition carries: terminals + tooltip text, internal contact topology,
+// working-logic explanation, nameplate data and pinout notes for the modal.
+
+const t = (id: string, label: string, role: ComponentDef['terminals'][number]['role'], desc: string) =>
+  ({ id, label, role, desc });
+
+export const COMPONENTS: ComponentDef[] = [
+  // ── Power ──────────────────────────────────────────────────────────────────
+  {
+    typeId: 'ps_control',
+    name: 'Control Power Supply 230VAC',
+    mnemonic: 'FU/PS',
+    category: 'supply',
+    accent: 'bg-red-500/80',
+    shortDesc: 'Phase (L) and Neutral (N) rails feeding the control circuit.',
+    workingLogic:
+      'The reference node of every control circuit. L is the phase rail, N returns to source. Everything between L and N forms one switching path. Never connect L directly to N — that is a dead short.',
+    wiringNote:
+      'Protect the control circuit with an MCB (2–6 A) or control-transformer fuse on L. Keep N isolated from earth.',
+    terminals: [
+      t('L', 'L', 'line', 'Phase conductor, 230 VAC relative to N. All energization starts here.'),
+      t('N', 'N', 'neutral', 'Neutral return. A load is energized only when a closed path reaches N.'),
+    ],
+    contacts: [],
+    actuation: 'none',
+    nameplate: { RatedVoltage: '230 VAC', Frequency: '50 Hz', ControlCircuit: 'Fuse / MCB 2–6 A', Standard: 'IEC 60204-1' },
+    pinoutNote: 'Two-rail source: L (hot) and N (return).',
+    keywords: ['supply', 'power', 'phase', 'neutral'],
+  },
+
+  // ── Selector / toggle switches ────────────────────────────────────────────
+  {
+    typeId: 'selector_2pos_no',
+    name: 'Selector Switch — 2-Position NO',
+    mnemonic: 'SA',
+    category: 'switch',
+    accent: 'bg-amber-500/80',
+    shortDesc: 'NO contact 13–14: stays OPEN until manually rotated to ON, then latches closed.',
+    workingLogic:
+      'Normally-Open maintain contact. In OFF (pos 0) the 13–14 circuit is broken; rotating to ON (pos 1) closes it and it STAYS closed (maintain/latching action) until operated back. The classic choice for LOCAL/OFF/REMOTE and mode selection.',
+    wiringNote:
+      'IEC numbering: odd = incoming (13), even = outgoing (14). The contact remains closed without any human force on the knob.',
+    terminals: [
+      t('13', '13', 'common', 'COM — incoming wire of the NO contact.'),
+      t('14', '14', 'no', 'NO — closed only while the knob is held at ON (position 1).'),
+    ],
+    coil: undefined,
+    contacts: [{ com: '13', no: '14' }],
+    actuation: 'state',
+    positions: 2,
+    nameplate: { RatedVoltage: '690 VAC', RatedCurrent: '10 A (AC-15: 3 A)', UtilizationCategory: 'AC-15 / DC-13', IP: 'IP54 front face', Standard: 'IEC 60947-5-1', 'Mech. life': '1 M operations' },
+    pinoutNote: '13→14 NO contact. A matching NC block would use 11→12.',
+    keywords: ['selector', 'switch', 'no', 'maintain', 'mode'],
+  },
+  {
+    typeId: 'selector_2pos_nc',
+    name: 'Selector Switch — 2-Position NC',
+    mnemonic: 'SA',
+    category: 'switch',
+    accent: 'bg-amber-500/80',
+    shortDesc: 'NC contact 11–12: conducts in OFF, OPENS when rotated to ON.',
+    workingLogic:
+      'Normally-Closed maintain contact: 11–12 is closed at rest (OFF) and breaks when the knob is turned to ON. Used to REMOVE a circuit branch when a mode is selected — e.g. NC side of a HAND/OFF selector so Auto logic only runs when OFF is selected.',
+    wiringNote:
+      'IEC numbering: 11 = incoming, 12 = outgoing NC. Safety circuits (E-stop chains, interlocks) prefer NC so a broken wire is detected as a fault.',
+    terminals: [
+      t('11', '11', 'common', 'COM — incoming wire of the NC contact.'),
+      t('12', '12', 'nc', 'NC — closed while knob at OFF, opens at ON (fail-safe polarity).'),
+    ],
+    contacts: [{ com: '11', nc: '12' }],
+    actuation: 'state',
+    positions: 2,
+    nameplate: { RatedVoltage: '690 VAC', RatedCurrent: '10 A', UtilizationCategory: 'AC-15', Standard: 'IEC 60947-5-1' },
+    pinoutNote: '11→12 NC contact.',
+    keywords: ['selector', 'switch', 'nc', 'normally closed'],
+  },
+  {
+    typeId: 'selector_3pos_am',
+    name: 'Selector — 3-Position AUTO / OFF / MANUAL',
+    mnemonic: 'SA',
+    category: 'switch',
+    accent: 'bg-orange-500/80',
+    shortDesc: 'Changeover: COM→14 closed at pos 1 (AUTO), COM→24 closed at pos 2 (MANUAL).',
+    workingLogic:
+      'Two NO decks on one shaft. Position 0 (OFF): both circuits open. Position 1 (AUTO): 13–14 closes — feeds automatic logic (PLC/timer). Position 2 (MANUAL): 23–24 closes — feeds direct hand-start logic. The two decks can never close together: built-in mechanical互lock.',
+    wiringNote:
+      'Standard machine mode switch per IEC 60204-1. Wire AUTO and MANUAL branches to mutually-exclusive control paths so mode selection is unique.',
+    terminals: [
+      t('13', '13', 'common', 'COM of deck 1 (AUTO).'),
+      t('14', '14', 'no', 'AUTO contact: closes only at position 1.'),
+      t('23', '23', 'common', 'COM of deck 2 (MANUAL).'),
+      t('24', '24', 'no', 'MANUAL contact: closes only at position 2.'),
+    ],
+    contacts: [
+      { com: '13', no: '14' },
+      { com: '23', no: '24' },
+    ],
+    actuation: 'state',
+    positions: 3,
+    nameplate: { RatedVoltage: '690 VAC', RatedCurrent: '10 A', Positions: '0 = OFF, 1 = AUTO, 2 = MANUAL', Standard: 'IEC 60947-3' },
+    pinoutNote: 'Deck numbering 1x / 2x; make-before-break is NOT used — break-before-make cam guarantees no overlap.',
+    keywords: ['selector', 'auto', 'manual', '3 position', 'mode'],
+  },
+  {
+    typeId: 'toggle_no',
+    name: 'Toggle Switch — Maintain NO',
+    mnemonic: 'S',
+    category: 'switch',
+    accent: 'bg-amber-500/80',
+    shortDesc: 'Flip-up ON: contact stays closed after release (maintain action).',
+    workingLogic:
+      'Same electrical behaviour as a 2-position NO selector with a lever. ON latches the 13–14 contact; the circuit stays alive hands-free.',
+    wiringNote: 'Use for supplies isolation, heater banks, and test-mode enable.',
+    terminals: [
+      t('13', '13', 'common', 'COM input.'),
+      t('14', '14', 'no', 'NO output — closed when the lever is at ON.'),
+    ],
+    contacts: [{ com: '13', no: '14' }],
+    actuation: 'state',
+    positions: 2,
+    nameplate: { RatedVoltage: '250 VAC', RatedCurrent: '6 A', Action: 'Maintain (latching)', Standard: 'IEC 61058' },
+    pinoutNote: 'SPST: 13 in, 14 out.',
+    keywords: ['toggle', 'switch', 'no'],
+  },
+  {
+    typeId: 'toggle_nc',
+    name: 'Toggle Switch — Maintain NC',
+    mnemonic: 'S',
+    category: 'switch',
+    accent: 'bg-amber-500/80',
+    shortDesc: 'Conducts at rest; flips OPEN when switched to ON.',
+    workingLogic:
+      'Normally-closed maintain contact 11–12. Closed with lever OFF, breaks at ON — the classic "enable/disable" inversion.',
+    wiringNote: 'NC switches are preferred in safety strings: wire break = same safe state as opening the switch.',
+    terminals: [
+      t('11', '11', 'common', 'COM input.'),
+      t('12', '12', 'nc', 'NC output — open when lever at ON.'),
+    ],
+    contacts: [{ com: '11', nc: '12' }],
+    actuation: 'state',
+    positions: 2,
+    nameplate: { RatedVoltage: '250 VAC', RatedCurrent: '6 A', Action: 'Maintain NC', Standard: 'IEC 61058' },
+    pinoutNote: 'SPST NC: 11 in, 12 out.',
+    keywords: ['toggle', 'switch', 'nc'],
+  },
+
+  // ── Push buttons ───────────────────────────────────────────────────────────
+  {
+    typeId: 'pb_no',
+    name: 'Push Button — Momentary NO',
+    mnemonic: 'SB',
+    category: 'pushbutton',
+    accent: 'bg-green-500/80',
+    shortDesc: 'Green START type: closes 13–14 only while finger pressure is held.',
+    workingLogic:
+      'Spring-return contact. Pressed → 13–14 closes; released → opens again. Because it does NOT latch, a START button alone cannot keep a contactor alive — a seal-in (latch) auxiliary contact wired in parallel is mandatory. This is the origin of the classic START/STOP latching circuit.',
+    wiringNote:
+      'Colour per IEC 60204-5: green = initiate (start). Terminals behind the block are marked 13/14.',
+    terminals: [
+      t('13', '13', 'common', 'COM in.'),
+      t('14', '14', 'no', 'NO out — momentary: live only while pressed.'),
+    ],
+    contacts: [{ com: '13', no: '14' }],
+    actuation: 'state',
+    momentary: true,
+    nameplate: { RatedVoltage: '690 VAC', RatedCurrent: '10 A thermal', UtilizationCategory: 'AC-15', 'Contact block': 'NO 1-pole (13-14)', IP: 'IP65 front', Standard: 'IEC 60947-5-1' },
+    pinoutNote: 'Momentary NO block: 13→14. Add NC block beside it = 11→12.',
+    keywords: ['push', 'button', 'start', 'no', 'momentary'],
+  },
+  {
+    typeId: 'pb_nc',
+    name: 'Push Button — Momentary NC',
+    mnemonic: 'SB',
+    category: 'pushbutton',
+    accent: 'bg-red-500/80',
+    shortDesc: 'Red STOP type: 11–12 conducts at rest, BREAKS when pressed.',
+    workingLogic:
+      'Normally-closed spring-return. Rest: 11–12 closed. Pressed: opens, de-energizing everything downstream — then snaps back. STOP devices are always NC so a cut wire also stops the machine (fail-safe).',
+    wiringNote: 'Red/mushroom = stop or emergency per IEC 60204-5. Twist-to-release E-stop latches mechanically.',
+    terminals: [
+      t('11', '11', 'common', 'COM in — fed from control L.'),
+      t('12', '12', 'nc', 'NC out — opens while pressed (stop pulse).'),
+    ],
+    contacts: [{ com: '11', nc: '12' }],
+    actuation: 'state',
+    momentary: true,
+    nameplate: { RatedVoltage: '690 VAC', RatedCurrent: '10 A thermal', UtilizationCategory: 'AC-15', 'Contact block': 'NC 1-pole (11-12)', Standard: 'IEC 60947-5-1' },
+    pinoutNote: 'Momentary NC block: 11→12.',
+    keywords: ['push', 'button', 'stop', 'nc', 'emergency'],
+  },
+
+  // ── Relays ─────────────────────────────────────────────────────────────────
+  {
+    typeId: 'relay_8pin',
+    name: 'General Purpose Relay — 8-pin Round Base',
+    mnemonic: 'K',
+    category: 'relay',
+    accent: 'bg-sky-500/80',
+    shortDesc: 'Coil pins 2–7. Two changeover contacts: COM 1/8, NO 3/6, NC 4/5.',
+    workingLogic:
+      'Electromagnet on coil 2–7. Coil unpowered: pole A = 1–4, pole B = 8–5 (NC side). Coil powered: armature pulls, pole A = 1–3, pole B = 8–6. A small relay cannot make motor currents — it multiplies logic contacts and drives pilot loads; the contactor does the power switching.',
+    wiringNote:
+      'Base wiring: coil to control voltage across 2–7 (observe AC/DC polarity; on DC add a flyback diode across the coil). Fuse each COM if several poles feed different circuits.',
+    terminals: [
+      t('2', '2', 'coil', 'Coil A1 (− for DC).'),
+      t('7', '7', 'coil', 'Coil A2 (+ for DC).'),
+      t('1', '1', 'common', 'COM pole A.'),
+      t('3', '3', 'no', 'NO pole A (closed when coil energized).'),
+      t('4', '4', 'nc', 'NC pole A (open when coil energized).'),
+      t('8', '8', 'common', 'COM pole B.'),
+      t('6', '6', 'no', 'NO pole B.'),
+      t('5', '5', 'nc', 'NC pole B.'),
+    ],
+    coil: ['2', '7'],
+    contacts: [
+      { com: '1', no: '3', nc: '4' },
+      { com: '8', no: '6', nc: '5' },
+    ],
+    actuation: 'coil',
+    nameplate: { CoilSupply: '24 VDC / 230 VAC versions', 'Contact rating': '6 A AC-1', 'Coil power': '≈ 400 mW (DC)', 'Contact config': '2 × CO (DPDT)', Isolation: 'Coil–contacts 4 kV', Standard: 'IEC 62619', Socket: 'PF083A round base', },
+    pinoutNote: 'Round-base numbering clockwise: coil 2-7, pole A 1-3-4, pole B 8-6-5. Key slot at pin 1.',
+    keywords: ['relay', '8 pin', 'dpdt', 'k1'],
+  },
+  {
+    typeId: 'relay_11pin',
+    name: 'Slim Relay — 11-pin Base (3 CO poles)',
+    mnemonic: 'K',
+    category: 'relay',
+    accent: 'bg-sky-500/80',
+    shortDesc: 'Coil 7–8. Three changeover poles: 1/2/3, 4/5/6, 9/10/11.',
+    workingLogic:
+      'Same physics as the 8-pin relay but three poles — used where one control signal must switch several circuits (interlock mirrors, mode replication). Coil on pins 7–8; each pole has COM/NO/NC. Unpowered, every COM sits on its NC pin.',
+    wiringNote:
+      'The 11-pin (e.g. R1S / T90) shares the footprint family with timers, so relays and timers swap into the same socket. Use the socket LED + test button for fast fault-finding.',
+    terminals: [
+      t('7', '7', 'coil', 'Coil A1.'),
+      t('8', '8', 'coil', 'Coil A2.'),
+      t('1', '1', 'common', 'COM pole 1.'),
+      t('2', '2', 'no', 'NO pole 1.'),
+      t('3', '3', 'nc', 'NC pole 1.'),
+      t('4', '4', 'common', 'COM pole 2.'),
+      t('5', '5', 'no', 'NO pole 2.'),
+      t('6', '6', 'nc', 'NC pole 2.'),
+      t('9', '9', 'common', 'COM pole 3.'),
+      t('10', '10', 'no', 'NO pole 3.'),
+      t('11', '11', 'nc', 'NC pole 3.'),
+    ],
+    coil: ['7', '8'],
+    contacts: [
+      { com: '1', no: '2', nc: '3' },
+      { com: '4', no: '5', nc: '6' },
+      { com: '9', no: '10', nc: '11' },
+    ],
+    actuation: 'coil',
+    nameplate: { CoilSupply: '24 VDC / 230 VAC', 'Contact rating': '5 A AC-1', 'Contact config': '3 × CO (3PDT)', IP: 'IP40 module / IP20 terminal', Standard: 'IEC 61810' },
+    pinoutNote: 'Poles grouped 1-2-3, 4-5-6, 9-10-11; coil isolated at 7-8 with no contact in between.',
+    keywords: ['relay', '11 pin', 'tripole', 'slim'],
+  },
+
+  // ── Timers ─────────────────────────────────────────────────────────────────
+  {
+    typeId: 'timer_on',
+    name: 'Timer Relay — On-Delay (TOE)',
+    mnemonic: 'KT',
+    category: 'timer',
+    accent: 'bg-violet-500/80',
+    shortDesc: 'Output 15→18 closes only after coil has been powered for the preset time.',
+    workingLogic:
+      'A1–A2 coil starts counting the moment it is powered. Output contact (15 COM, 18 delayed NO) closes when elapsed ≥ preset and drops instantly if the coil de-energizes. Instant contact pair 15–16 follows the coil with 0 s delay. The heart of star→delta transition, pump alternation and ramp sequences.',
+    wiringNote: 'Set preset with the front potentiometer or DIP. Supply must match nameplate (24VDC … 240VAC universal modules exist).',
+    terminals: [
+      t('A1', 'A1', 'coil', 'Timer coil supply L/+. Starts the count when energized.'),
+      t('A2', 'A2', 'coil', 'Timer coil supply N/−.'),
+      t('15', '15', 'common', 'COM of the timed output (SPDT).'),
+      t('16', '16', 'nc', 'NC side of timed output.'),
+      t('18', '18', 'no', 'Delayed NO — closes when preset time elapses.'),
+    ],
+    coil: ['A1', 'A2'],
+    contacts: [{ com: '15', no: '18', nc: '16' }],
+    actuation: 'timer',
+    defaultDelay: 5,
+    nameplate: { Supply: '24–240 VAC/DC universal', Range: '0.05 s … 300 h', Accuracy: '± 0.1 % of preset', 'Contact rating': '6 A AC-1 / 3 CO', Standard: 'IEC 61812-1', Mode: 'TOE on-delay, flasher, cumulative' },
+    pinoutNote: 'Multifunction sockets reuse relay footprints: coil A1/A2 = pins 7/8 (11-pin) or 2/7 (8-pin).',
+    keywords: ['timer', 'on-delay', 'toe', 'kt'],
+  },
+  {
+    typeId: 'timer_off',
+    name: 'Timer Relay — Off-Delay (TOL)',
+    mnemonic: 'KT',
+    category: 'timer',
+    accent: 'bg-violet-500/80',
+    shortDesc: 'Output closes instantly with the coil, and stays closed for the preset AFTER the coil drops.',
+    workingLogic:
+      'Coil powered → 15–18 closes immediately. Coil removed → the timer RETAINS and counts down; the output opens only when the preset has elapsed. Classic uses: fan keeps running after heater off, flushing sequences, last-out delays.',
+    wiringNote: 'Requires coil supply to be present during the counting-down window on electronic types; universal modules hold internal supply.',
+    terminals: [
+      t('A1', 'A1', 'coil', 'Timer coil L/+.'),
+      t('A2', 'A2', 'coil', 'Timer coil N/−.'),
+      t('15', '15', 'common', 'COM of timed output.'),
+      t('16', '16', 'nc', 'NC side of timed output.'),
+      t('18', '18', 'no', 'Output — closed while coil ON and for preset seconds after coil OFF.'),
+    ],
+    coil: ['A1', 'A2'],
+    contacts: [{ com: '15', no: '18', nc: '16' }],
+    actuation: 'timer',
+    defaultDelay: 3,
+    nameplate: { Supply: '24–240 VAC/DC', Mode: 'TOL off-delay', Range: '1 s … 24 h', 'Contact rating': '8 A' },
+    pinoutNote: 'Same A1-A2 / 15-16-18 layout as the on-delay.',
+    keywords: ['timer', 'off-delay', 'tol'],
+  },
+  {
+    typeId: 'timer_pulse',
+    name: 'Timer — Pulse / Flasher (TP)',
+    mnemonic: 'KT',
+    category: 'timer',
+    accent: 'bg-fuchsia-500/80',
+    shortDesc: 'While coil energized the output oscillates ON/OFF at the preset period.',
+    workingLogic:
+      'Coil powered → output alternates: ON for half the period, OFF for half (50 % duty). Used for alarm beacons, "purge" flashing sequences and pump-test blink. Coil dropped → output opens.',
+    wiringNote: 'Adjust period on front pot; duty-cycle adjustable versions exist (symmetric/asymmetric flasher).',
+    terminals: [
+      t('A1', 'A1', 'coil', 'Flasher coil L/+.'),
+      t('A2', 'A2', 'coil', 'Flasher coil N/−.'),
+      t('15', '15', 'common', 'COM of flashing output.'),
+      t('16', '16', 'nc', 'NC side.'),
+      t('18', '18', 'no', 'Flashing NO output.'),
+    ],
+    coil: ['A1', 'A2'],
+    contacts: [{ com: '15', no: '18', nc: '16' }],
+    actuation: 'timer',
+    defaultDelay: 1,
+    nameplate: { Supply: '24 VDC … 240 VAC', 'Flash frequency': '0.1 – 5 Hz', Duty: '50 % symmetric', 'Contact rating': '3 A' },
+    pinoutNote: 'A1/A2 coil; DP output on the 15/16/18 + 25/26/28 second pole.',
+    keywords: ['timer', 'flasher', 'pulse', 'blink'],
+  },
+
+  // ── Counters ───────────────────────────────────────────────────────────────
+  {
+    typeId: 'counter_updown',
+    name: 'Electronic Counter — Up/Down with Preset',
+    mnemonic: 'C',
+    category: 'counter',
+    accent: 'bg-teal-500/80',
+    shortDesc: 'Counts rising edges on the IN pulse terminal; output 15→14 closes at preset.',
+    workingLogic:
+      'Every new pulse on IN (detected as terminal energization) increments the present value. At count ≥ preset the relay output latches (change to reset mode on the front panel). RST terminal clears the value. MODE sets up (count-up) or down. Edge detection uses a Schmitt trigger — contact bounce is rejected.',
+    wiringNote:
+      'Fast signals (sensors > 20 Hz) need a DC-input counter with opto-insulation; relay contacts limit to ≈ 20 Hz.',
+    terminals: [
+      t('A1', 'A1', 'coil', 'Counter supply L/+.'),
+      t('A2', 'A2', 'coil', 'Counter supply N/−.'),
+      t('IN', 'IN', 'signal', 'Pulse counting input — rising edge = +1.'),
+      t('RST', 'RST', 'signal', 'Reset input — clears present value to 0 while energized.'),
+      t('15', '15', 'common', 'COM of preset output.'),
+      t('14', '14', 'no', 'Reaches preset output — latches closed at count ≥ preset.'),
+    ],
+    coil: ['A1', 'A2'],
+    contacts: [{ com: '15', no: '14' }],
+    actuation: 'counter',
+    defaultDelay: 5,
+    nameplate: { Supply: '24 VDC … 240 VAC', 'Count range': '0 … 999 999', 'Max input freq': '50 Hz (DC input)', 'Count input': 'PNP/NPN selectable', Output: '1 × relay SPDT 3 A', Standard: 'IEC 61812-2' },
+    pinoutNote: 'Inputs IN / RST are opto-isolated control pins; the relay output uses the 15/16/14 group.',
+    keywords: ['counter', 'up', 'down', 'preset', 'batch'],
+  },
+
+  // ── Contactors & protection ────────────────────────────────────────────────
+  {
+    typeId: 'contactor',
+    name: 'Power Contactor — AC-3',
+    mnemonic: 'KM',
+    category: 'contactor',
+    accent: 'bg-blue-600/80',
+    shortDesc: 'Electromagnetic main switches + aux NO 13–14 and NC 21–22 mirrors of the coil.',
+    workingLogic:
+      'Coil A1–A2 energizes the electromagnet; the armature closes the three power poles (make) and simultaneously flips every auxiliary contact: NO closes, NC opens. De-energized → spring returns armature. AC-3 rating = making/breaking a RUNNING squirrel-cage motor (≈ 6× FLC break). Auxiliary contacts are the seal-in and interlock elements in the control circuit.',
+    wiringNote:
+      'Choking ring / MOV suppresses coil inrush. Never wire an auxiliary circuit through the power poles; aux contacts are ≤ 10 A thermal only.',
+    terminals: [
+      t('A1', 'A1', 'coil', 'Magnet coil L/+.'),
+      t('A2', 'A2', 'coil', 'Magnet coil N/−.'),
+      t('13', '13', 'common', 'Aux NO COM.'),
+      t('14', '14', 'no', 'Aux NO — closes when coil pulls in.'),
+      t('21', '21', 'common', 'Aux NC COM.'),
+      t('22', '22', 'nc', 'Aux NC — opens when coil pulls in. Interlock element.'),
+    ],
+    coil: ['A1', 'A2'],
+    contacts: [
+      { com: '13', no: '14' },
+      { com: '21', nc: '22' },
+    ],
+    actuation: 'coil',
+    nameplate: { UtilizationCategory: 'AC-3 (motor)', 'Rated Ie (AC-3)': '9 / 12 / 18 / 25 / 32 / 40 / 65 / 80 A', 'Rated voltage': '400 VAC', 'AC-4 rating': '≈ 0.4 × AC-3 current', 'Coil voltage': '24 VDC / 230 VAC', Standards: 'IEC 60947-4-1', 'Electrical life AC-3': '1.6 M operations' },
+    pinoutNote: 'Aux blocks side-mount: 1NO = 13-14, 1NC = 21-22, changeover 31/32/34.',
+    keywords: ['contactor', 'km', 'ac-3', 'motor', 'magnetic'],
+  },
+  {
+    typeId: 'overload',
+    name: 'Thermal Overload Relay',
+    mnemonic: 'F',
+    category: 'overload',
+    accent: 'bg-rose-500/80',
+    shortDesc: 'NC 95–96 carries the control string; it TRIPS open on sustained overload.',
+    workingLogic:
+      'Bimetal strips heated by the motor phase currents. When the I²t integral of the overload crosses the class curve (Class 10: trip ≤ 10 s at 7.2× setting) the mechanism latches: 95–96 opens, killing the contactor coil; 97–98 closes to signal the fault. Reset: manual button (or automatic remote).',
+    wiringNote:
+      'Setting dial = motor FLC (DOL: 1.0×; star-delta: 0.58×, because the winding only carries 1/√3 of line current). Series-connect with the contactor output — no fuse between contactor and overload.',
+    terminals: [
+      t('95', '95', 'common', 'NC auxiliary COM — normally wired into the stop string.'),
+      t('96', '96', 'nc', 'NC — opens on trip. Disconnects the coil = motor stops.'),
+      t('97', '97', 'common', 'NO alarm COM.'),
+      t('98', '98', 'no', 'NO — closes on trip (lamp / PLC fault input).'),
+      t('RST', 'RST', 'signal', 'Reset input: energize to remote-reset the latched trip.'),
+    ],
+    contacts: [
+      { com: '95', nc: '96' },
+      { com: '97', no: '98' },
+    ],
+    actuation: 'overload',
+    nameplate: { Trip: 'Class 10 / Class 20 (A)', Setting: '0.1 … 95 A (dial)', Reset: 'Manual / Automatic selectable', 'Contacts': '1NC 95-96 + 1NO 97-98', Standard: 'IEC 60947-4-1', 'Ambient compensation': '−20 … +60 °C' },
+    pinoutNote: '95/96 = NC break path (safety), 97/98 = NO make (indication) — IEC 60947-4-1 numbering.',
+    keywords: ['overload', 'thermal', 'bimetal', 'relay', 'f1'],
+  },
+  {
+    typeId: 'limit_switch',
+    name: 'Limit Switch — Roller Lever, NO + NC',
+    mnemonic: 'S1',
+    category: 'switch',
+    accent: 'bg-lime-500/80',
+    shortDesc: 'Mechanical end-of-travel: NO 13–14 closes and NC 21–22 opens when the roller is pressed.',
+    workingLogic:
+      'The cam/roller physically pushes the plunger: NO block closes, NC block opens, both snap-action (speed-independent, ≈ 3 ms). Released → springs back. Position 0 = not actuated. Used as end-stops on conveyors, door guards, cylinder position feedback.',
+    wiringNote:
+      'Series NO+NC blocks give a "mid-position window". On safety doors use specially-constructed interlock switches, not standard limits.',
+    terminals: [
+      t('13', '13', 'common', 'NO block COM.'),
+      t('14', '14', 'no', 'NO — closes while roller pressed.'),
+      t('21', '21', 'common', 'NC block COM.'),
+      t('22', '22', 'nc', 'NC — opens while roller pressed.'),
+    ],
+    contacts: [
+      { com: '13', no: '14' },
+      { com: '21', nc: '22' },
+    ],
+    actuation: 'state',
+    momentary: true,
+    nameplate: { RatedVoltage: '690 VAC', 'Contact rating': '10 A thermal / AC-15 4 A', 'Operating speed': '0.1 … 1 m/s', IP: 'IP65', 'Mech life': '10 M cycles', Standard: 'IEC 60947-5-1' },
+    pinoutNote: 'Block-based head: 1NO (13-14) + 1NC (21-22) snap-action.',
+    keywords: ['limit', 'switch', 'roller', 'end stop', 'conveyor'],
+  },
+
+  // ── Sensors ────────────────────────────────────────────────────────────────
+  {
+    typeId: 'sensor_inductive',
+    name: 'Proximity Sensor — Inductive (M12/M18)',
+    mnemonic: 'B',
+    category: 'sensor',
+    accent: 'bg-cyan-500/80',
+    shortDesc: 'Detects METAL only. 3-wire: BN +VDC, BU 0 V, BK output (PNP switches +V).',
+    workingLogic:
+      'An oscillator coil at the face senses eddy currents in approaching metal; switching range 2–8 mm. Output stage: PNP "sourcing" — black wire connects to +V when a target is detected (NO type shown). Power must be present on BN/BU for the oscillator to run.',
+    wiringNote:
+      'Brown = +VDC (L+), Blue = 0 V (M), Black = signal. NO = black closed to +V when detected; NC versions invert. Observe polarity — BN/BU swap destroys the sensor. Add the load (PLC input / relay) between BK and 0 V.',
+    terminals: [
+      t('BN', 'BN (+V)', 'line', 'Brown — +VDC supply (10–30 V).'),
+      t('BU', 'BU (0V)', 'neutral', 'Blue — 0 V return.'),
+      t('BK', 'BK (OUT)', 'signal', 'Black — PNP output: switches to +V when target detected.'),
+    ],
+    contacts: [{ com: 'BN', no: 'BK' }],
+    actuation: 'sensor',
+    nameplate: { Supply: '10 … 30 VDC', sensing: '2 / 4 / 8 mm flush', Output: 'PNP NO, 200 mA', 'Response': '≤ 0.5 ms', IP: 'IP67', Standard: 'IEC 60947-5-2', Material: 'Nickel-plated brass', 'hysteresis': '1 … 10 % Sr' },
+    pinoutNote: 'IEC wire colours: BN/BU/BK (+V/0/signal); 4-wire adds WK for NC output.',
+    keywords: ['sensor', 'proximity', 'inductive', 'metal', 'pnp', 'm12'],
+  },
+  {
+    typeId: 'sensor_capacitive',
+    name: 'Proximity Sensor — Capacitive (M18/M30)',
+    mnemonic: 'B',
+    category: 'sensor',
+    accent: 'bg-indigo-500/80',
+    shortDesc: 'Detects ANY material through walls (liquids, powder, plastic). 3-wire PNP.',
+    workingLogic:
+      'RF field between face electrode and compensation plate; any material raises capacitance → oscillation amplitude shifts → comparator switches. Range 5–15 mm; sensitivity trimmer defeats vessel-wall thickness. Power on BN/BU required.',
+    wiringNote:
+      'Same BN/BU/BK colour code. Mount with the metal-nut spacing rule or a false-alarm zone appears around the thread.',
+    terminals: [
+      t('BN', 'BN (+V)', 'line', 'Brown — +VDC supply.'),
+      t('BU', 'BU (0V)', 'neutral', 'Blue — 0 V.'),
+      t('BK', 'BK (OUT)', 'signal', 'Black — PNP switch output when material detected.'),
+    ],
+    contacts: [{ com: 'BN', no: 'BK' }],
+    actuation: 'sensor',
+    nameplate: { Supply: '10 … 30 VDC', sensing: '5 … 15 mm (any material)', Output: 'PNP NO', Trim: '25-turn potentiometer', IP: 'IP67' },
+    pinoutNote: '3-wire DC PNP NO: BN/BU/BK.',
+    keywords: ['sensor', 'capacitive', 'level', 'liquid'],
+  },
+  {
+    typeId: 'sensor_photo',
+    name: 'Photoelectric Sensor — Diffuse Retro-reflective',
+    mnemonic: 'B',
+    category: 'sensor',
+    accent: 'bg-purple-500/80',
+    shortDesc: 'Light beam / photocell. Detects objects by reflected light. 3/4-wire PNP.',
+    workingLogic:
+      'Emitter (IR/red laser) + receiver behind a band-pass filter. Diffuse mode: object reflects light back → output switches. Dark-on / light-on selectable. Needs BN/BU power; output BK switches +V when detecting (light-on, PNP NO).',
+    wiringNote:
+      'Keep emitter-receiver pairs aligned within spec; glossy/transparent targets need background suppression or a retro-reflective type with polarizing filter.',
+    terminals: [
+      t('BN', 'BN (+V)', 'line', 'Brown — supply +VDC.'),
+      t('BU', 'BU (0V)', 'neutral', 'Blue — 0 V.'),
+      t('BK', 'BK (OUT)', 'signal', 'Black — PNP output on detection.'),
+      t('WH', 'WH (test)', 'signal', 'White — test input (force switching) on 4-wire versions.'),
+    ],
+    contacts: [{ com: 'BN', no: 'BK' }],
+    actuation: 'sensor',
+    nameplate: { Supply: '10 … 30 VDC', 'Range (diffuse)': '50 … 300 mm', 'Spot': '≈ 3 mm', Response: '≤ 1 ms (1 kHz)', Output: 'PNP NO + complementary', IP: 'IP67', Standard: 'IEC 60947-5-2' },
+    pinoutNote: 'M12 4-pin or molded 3/4-wire; colours BN/BU/BK/WH.',
+    keywords: ['photoelectric', 'photocell', 'optical', 'sensor'],
+  },
+
+  // ── Loads ──────────────────────────────────────────────────────────────────
+  {
+    typeId: 'motor_3ph',
+    name: '3-Phase Induction Motor',
+    mnemonic: 'M',
+    category: 'load',
+    accent: 'bg-emerald-600/80',
+    shortDesc: 'Squirrel-cage drive: energizes when power reaches both terminals via the control path.',
+    workingLogic:
+      'Representative of the power circuit in the simulator: the two terminals stand in for L1/L2 (or the thermal relay output to the motor). When a closed path from L through contactor main poles reaches the motor, it runs; forward/reverse rotation is decided by two phase swaps (contactor pair).',
+    wiringNote:
+      'Real connection: breaker → contactor poles → thermal relay → motor terminals U-V-W. Star/Delta needs the 6-terminal motor (U1-V1-W1 + U2-V2-W2).',
+    terminals: [
+      t('U', 'U (L1 side)', 'coil', 'Feed side from contactor/thermal relay.'),
+      t('W', 'W (return)', 'coil', 'Return side of the modeled power path.'),
+    ],
+    coil: ['U', 'W'],
+    contacts: [],
+    actuation: 'none',
+    isLoad: true,
+    nameplate: { Power: '0.37 … 315 kW', Voltage: '400 V Δ / 690 V Y', 'Cos φ': '0.75 … 0.88', Efficiency: 'IE3 85 … 96 %', 'Starting': 'Direct-on-line ≤ 8 × FLC', Insulation: 'Class F, IP55', Duty: 'S1 continuous' },
+    pinoutNote: 'Terminal box: U1-V1-W1 (top row) U2-V2-W2 (bottom) for star/delta link plates.',
+    keywords: ['motor', 'drive', '3 phase', 'load'],
+  },
+  {
+    typeId: 'lamp_pilot',
+    name: 'Pilot Light / Indicator',
+    mnemonic: 'H',
+    category: 'load',
+    accent: 'bg-yellow-500/80',
+    shortDesc: 'LED or filament indicator lamp — energizes on a completed L→N path.',
+    workingLogic: 'Lights when both terminals bridge L and N through closed contacts. Standard panel signalling: green run, red fault, amber standby.',
+    wiringNote: 'LED types 230 V, ≤ 1 W; filament lamp holders with series resistor for 24 V panels.',
+    terminals: [
+      t('X', 'X', 'coil', 'Lamp feed.'),
+      t('Y', 'Y', 'coil', 'Lamp return.'),
+    ],
+    coil: ['X', 'Y'],
+    contacts: [],
+    actuation: 'none',
+    isLoad: true,
+    nameplate: { Voltage: '230 VAC (versions 24 V LED)', Power: 'LED 0.5 W', IP: 'IP65 front', Colour: 'Green / Red / Amber / White', Standard: 'IEC 60947-5-1' },
+    pinoutNote: 'Screw terminals X–Y behind the bezel.',
+    keywords: ['lamp', 'pilot', 'light', 'indicator'],
+  },
+  {
+    typeId: 'solenoid_valve',
+    name: 'Solenoid Valve (Hydraulic / Pneumatic)',
+    mnemonic: 'YV',
+    category: 'load',
+    accent: 'bg-orange-600/80',
+    shortDesc: 'Electromagnetic valve coil: opens or closes the fluid path when energized.',
+    workingLogic:
+      'Coil pulls a pilot armature, shifting the spool or direct-acting poppet. Energized = valve state 1; de-energized spring returns to state 0. Inrush ≈ 5…15× holding power for AC solenoids; use DC + diode for long duty.',
+    wiringNote: 'Flyback diode / RC suppressor across the coil protects the driving relay contacts.',
+    terminals: [
+      t('1', '1', 'coil', 'Coil feed.'),
+      t('2', '2', 'coil', 'Coil return.'),
+    ],
+    coil: ['1', '2'],
+    contacts: [],
+    actuation: 'none',
+    isLoad: true,
+    nameplate: { Voltage: '24 VDC (AC versions exist)', 'Duty': '100 % ED DC', Power: 'Inrush 30 W / hold 10 W', Pressure: '0 … 10 bar', Media: 'Air, oil, water', Response: '≤ 30 ms' },
+    pinoutNote: 'DIN 43650 connector pins 1/2 (or +/−).',
+    keywords: ['solenoid', 'valve', 'pneumatic', 'hydraulic', 'load'],
+  },
+  {
+    typeId: 'bell_horn',
+    name: 'Alarm Bell / Sounder',
+    mnemonic: 'HA',
+    category: 'load',
+    accent: 'bg-pink-600/80',
+    shortDesc: 'Audible alarm: rings while a complete circuit energizes it.',
+    workingLogic: 'Electromechanical bell striker or piezo horn driven while powered — combined with a flasher timer for a blinking horn pattern.',
+    wiringNote: 'Horns draw several amps — drive through a relay or contactor, never through a push-button block.',
+    terminals: [
+      t('1', '1', 'coil', '+ supply'),
+      t('2', '2', 'coil', '0 V / N'),
+    ],
+    coil: ['1', '2'],
+    contacts: [],
+    actuation: 'none',
+    isLoad: true,
+    nameplate: { Voltage: '24 VDC / 230 VAC', 'Sound level': '105 dB @ 1 m', Current: '0.3 … 2 A', IP: 'IP65', Standard: 'IEC 62619' },
+    pinoutNote: 'Two bare terminals; DC polarity marked.',
+    keywords: ['bell', 'horn', 'alarm', 'siren'],
+  },
+];
+
+export const COMPONENT_MAP: Record<string, ComponentDef> = Object.fromEntries(
+  COMPONENTS.map((c) => [c.typeId, c]),
+);
+
+export const PALETTE_GROUPS: { title: string; typeIds: string[] }[] = [
+  { title: 'Power', typeIds: ['ps_control'] },
+  {
+    title: 'Operator Switches',
+    typeIds: ['selector_2pos_no', 'selector_2pos_nc', 'selector_3pos_am', 'toggle_no', 'toggle_nc'],
+  },
+  { title: 'Push Buttons', typeIds: ['pb_no', 'pb_nc'] },
+  { title: 'Relays', typeIds: ['relay_8pin', 'relay_11pin'] },
+  { title: 'Timers', typeIds: ['timer_on', 'timer_off', 'timer_pulse'] },
+  { title: 'Counters', typeIds: ['counter_updown'] },
+  { title: 'Contactors & Protection', typeIds: ['contactor', 'overload'] },
+  { title: 'Position Detection', typeIds: ['limit_switch'] },
+  { title: 'Proximity Sensors', typeIds: ['sensor_inductive', 'sensor_capacitive', 'sensor_photo'] },
+  { title: 'Loads / Outputs', typeIds: ['motor_3ph', 'lamp_pilot', 'solenoid_valve', 'bell_horn'] },
+];
